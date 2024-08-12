@@ -25,6 +25,10 @@ type ObjectType struct {
 	// though it is still valid in order to save space. Indexers will want to have
 	// the option of retaining such data and distinguishing from other "true" deletions.
 	RetainDeletions bool
+
+	// UniqueConstraints is a list of unique constraints that are enforced in the underlying
+	// schema and that indexers can safely use to create unique query indexes.
+	UniqueConstraints []UniqueConstraint
 }
 
 // TypeName implements the Type interface.
