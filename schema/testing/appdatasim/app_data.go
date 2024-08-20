@@ -1,6 +1,7 @@
 package appdatasim
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -85,11 +86,29 @@ func (a *Simulator) BlockDataGen() *rapid.Generator[BlockData] {
 // BlockDataGenN creates a block data generator which allows specifying the maximum number of updates per block.
 func (a *Simulator) BlockDataGenN(minUpdatesPerBlock, maxUpdatesPerBlock int) *rapid.Generator[BlockData] {
 	numUpdatesGen := rapid.IntRange(minUpdatesPerBlock, maxUpdatesPerBlock)
+	numEventsGen := rapid.IntRange(1, 5)
 
 	return rapid.Custom(func(t *rapid.T) BlockData {
 		var packets BlockData
 
-		packets = append(packets, appdata.StartBlockData{Height: a.blockNum + 1})
+		// gen block header
+		header := JSONObjectGen.Draw(t, "blockHeader")
+		packets = append(packets, appdata.StartBlockData{
+			Height:      a.blockNum + 1,
+			HeaderBytes: func() ([]byte, error) { return json.Marshal(header) },
+			HeaderJSON:  func() (json.RawMessage, error) { return json.Marshal(header) },
+		})
+
+		// gen txs
+		numTxs := numUpdatesGen.Draw(t, "numTxs")
+		for i := 0; i < numTxs; i++ {
+			tx := JSONObjectGen.Draw(t, fmt.Sprintf("tx[%d]", i))
+			packets = append(packets, appdata.TxData{
+				TxIndex: int32(i),
+				Bytes:   func() ([]byte, error) { return json.Marshal(tx) },
+				JSON:    func() (json.RawMessage, error) { return json.Marshal(tx) },
+			})
+		}
 
 		updateSet := map[string]bool{}
 		// filter out any updates to the same key from this block, otherwise we can end up with weird errors
@@ -109,6 +128,38 @@ func (a *Simulator) BlockDataGenN(minUpdatesPerBlock, maxUpdatesPerBlock int) *r
 				updateSet[fmt.Sprintf("%s:%v", data.ModuleName, update.Key)] = true
 			}
 			packets = append(packets, data)
+		}
+
+		// begin block events
+		numBeginBlockEvents := numEventsGen.Draw(t, "numBeginBlockEvents")
+		for i := 0; i < numBeginBlockEvents; i++ {
+			evt := DefaultEventDataGen.Draw(t, fmt.Sprintf("beginBlockEvent[%d]", i))
+			evt.TxIndex = appdata.BeginBlockTxIndex
+			evt.EventIndex = uint32(i)
+			packets = append(packets, evt)
+		}
+
+		// tx events
+		for i := 0; i < numTxs; i++ {
+			numMsgs := numEventsGen.Draw(t, fmt.Sprintf("numEvents[%d]", i))
+			for j := 0; j < numMsgs; j++ {
+				numEvts := numEventsGen.Draw(t, fmt.Sprintf("numEvents[%d][%d]", i, j))
+				for k := 0; k < numEvts; k++ {
+					evt := DefaultEventDataGen.Draw(t, fmt.Sprintf("event[%d][%d][%d]", i, j, k))
+					evt.TxIndex = int32(i)
+					evt.MsgIndex = uint32(j)
+					evt.EventIndex = uint32(k)
+				}
+			}
+		}
+
+		// end block events
+		numEndBlockEvents := numEventsGen.Draw(t, "numEndBlockEvents")
+		for i := 0; i < numEndBlockEvents; i++ {
+			evt := DefaultEventDataGen.Draw(t, fmt.Sprintf("endBlockEvent[%d]", i))
+			evt.TxIndex = appdata.EndBlockTxIndex
+			evt.EventIndex = uint32(i)
+			packets = append(packets, evt)
 		}
 
 		packets = append(packets, appdata.CommitData{})

@@ -64,6 +64,11 @@ type EventData struct {
 	Data ToJSON
 }
 
+const (
+	BeginBlockTxIndex = -1
+	EndBlockTxIndex   = -2
+)
+
 // ToBytes is a function that lazily returns the raw byte representation of data.
 type ToBytes = func() ([]byte, error)
 

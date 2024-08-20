@@ -9,15 +9,17 @@ $$ LANGUAGE SQL IMMUTABLE;
 CREATE TABLE IF NOT EXISTS block
 (
     number BIGINT NOT NULL PRIMARY KEY,
-    header JSONB  NULL
+    header_json JSONB  NULL
+	header_bytes BYTEA NULL
 );
 
 CREATE TABLE IF NOT EXISTS tx
 (
-    id             BIGSERIAL PRIMARY KEY,
-    block_number   BIGINT NOT NULL REFERENCES block (number),
-    index_in_block BIGINT NOT NULL,
-    data           JSONB  NOT NULL
+    id               BIGSERIAL PRIMARY KEY,
+    block_number     BIGINT NOT NULL REFERENCES block (number),
+    index_in_block   BIGINT NOT NULL,
+    data_json        JSONB  NOT NULL
+	data_bytes       BYTEA  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS event
