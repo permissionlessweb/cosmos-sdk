@@ -203,13 +203,16 @@ func (m *MM[T]) ExportGenesisForModules(
 		return nil, err
 	}
 
+	type genesisResult struct {
+		bz  json.RawMessage
+		err error
+	}
+
 	type ModuleI interface {
 		ExportGenesis(ctx context.Context) (json.RawMessage, error)
 	}
 
-	genesisData := make(map[string]json.RawMessage)
-
-	// TODO: make async export genesis https://github.com/cosmos/cosmos-sdk/issues/21303
+	channels := make(map[string]chan genesisResult)
 	for _, moduleName := range modulesToExport {
 		mod := m.modules[moduleName]
 		var moduleI ModuleI
@@ -221,13 +224,24 @@ func (m *MM[T]) ExportGenesisForModules(
 		} else {
 			continue
 		}
+		channels[moduleName] = make(chan genesisResult)
+		go func(moduleI ModuleI, ch chan genesisResult) {
+			jm, err := moduleI.ExportGenesis(ctx)
+			if err != nil {
+				ch <- genesisResult{nil, err}
+			}
+			ch <- genesisResult{jm, nil}
+		}(moduleI, channels[moduleName])
+	}
 
-		res, err := moduleI.ExportGenesis(ctx)
-		if err != nil {
-			return nil, err
+	genesisData := make(map[string]json.RawMessage)
+	for moduleName := range channels {
+		res := <-channels[moduleName]
+		if res.err != nil {
+			return nil, fmt.Errorf("genesis export error in %s: %w", moduleName, res.err)
 		}
 
-		genesisData[moduleName] = res
+		genesisData[moduleName] = res.bz
 	}
 
 	return genesisData, nil
