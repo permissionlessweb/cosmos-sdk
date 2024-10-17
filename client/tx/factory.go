@@ -74,6 +74,10 @@ func NewFactoryCLI(clientCtx client.Context, flagSet *pflag.FlagSet) (Factory, e
 		signMode = signing.SignMode_SIGN_MODE_TEXTUAL
 	case flags.SignModeEIP191:
 		signMode = signing.SignMode_SIGN_MODE_EIP_191
+	default:
+		if len(clientCtx.SignModeStr) > 0 {
+			return Factory{}, fmt.Errorf("unrecognized sign mode: %s", clientCtx.SignModeStr)
+		}
 	}
 
 	var accNum, accSeq uint64

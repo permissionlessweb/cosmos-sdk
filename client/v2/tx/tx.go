@@ -214,16 +214,21 @@ func countDirectSigners(sigData SignatureData) int {
 }
 
 // getSignMode returns the corresponding apitxsigning.SignMode based on the provided mode string.
-func getSignMode(mode string) apitxsigning.SignMode {
+func getSignMode(mode string) (apitxsigning.SignMode, error) {
 	switch mode {
 	case "direct":
-		return apitxsigning.SignMode_SIGN_MODE_DIRECT
+		return apitxsigning.SignMode_SIGN_MODE_DIRECT, nil
 	case "direct-aux":
-		return apitxsigning.SignMode_SIGN_MODE_DIRECT_AUX
+		return apitxsigning.SignMode_SIGN_MODE_DIRECT_AUX, nil
 	case "amino-json":
-		return apitxsigning.SignMode_SIGN_MODE_LEGACY_AMINO_JSON
+		return apitxsigning.SignMode_SIGN_MODE_LEGACY_AMINO_JSON, nil
 	case "textual":
-		return apitxsigning.SignMode_SIGN_MODE_TEXTUAL
+		return apitxsigning.SignMode_SIGN_MODE_TEXTUAL, nil
+	default:
+		if len(mode) > 0 {
+			return 0, fmt.Errorf("unrecognized sign mode: %s", mode)
+		}
+
+		return apitxsigning.SignMode_SIGN_MODE_UNSPECIFIED, nil
 	}
-	return apitxsigning.SignMode_SIGN_MODE_UNSPECIFIED
 }

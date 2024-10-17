@@ -190,11 +190,16 @@ func txParamsFromFlagSet(flags *pflag.FlagSet, keybase keyring2.Keyring, ac addr
 		return params, err
 	}
 
+	sm, err := getSignMode(signMode)
+	if err != nil {
+		return params, err
+	}
+
 	txParams := TxParameters{
 		timeoutTimestamp: timeoutTimestamp,
 		chainID:          chainID,
 		memo:             memo,
-		signMode:         getSignMode(signMode),
+		signMode:         sm,
 		AccountConfig: AccountConfig{
 			accountNumber: accNumber,
 			sequence:      sequence,
