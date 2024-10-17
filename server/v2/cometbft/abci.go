@@ -292,7 +292,8 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 	// store chainID to be used later on in execution
 	c.chainID = req.ChainId
 
-	// TODO: check if we need to load the config from genesis.json or config.toml
+	// Set the initial height, which will be used to determine if we are proposing
+	// or processing the first block or not.
 	c.initialHeight = uint64(req.InitialHeight)
 	if c.initialHeight == 0 { // If initial height is 0, set it to 1
 		c.initialHeight = 1
@@ -330,7 +331,8 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 		ctx,
 		br,
 		req.AppStateBytes,
-		c.txCodec)
+		c.txCodec,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("genesis state init failure: %w", err)
 	}
@@ -353,10 +355,7 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 	if err != nil {
 		return nil, err
 	}
-	cs := &store.Changeset{
-		Changes: stateChanges,
-	}
-	stateRoot, err := c.store.WorkingHash(cs)
+	stateRoot, err := c.store.WorkingHash(&store.Changeset{Changes: stateChanges})
 	if err != nil {
 		return nil, fmt.Errorf("unable to write the changeset: %w", err)
 	}
