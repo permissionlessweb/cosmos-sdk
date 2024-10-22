@@ -37,11 +37,11 @@ func TestMintQueries(t *testing.T) {
 	blockHeightHeader := "x-cosmos-block-height"
 	queryAtHeight := "1"
 
-	// TODO: check why difference in values when querying with height between v1 and v2
-	// ref: https://github.com/cosmos/cosmos-sdk/issues/22302
-	if isV2() {
-		queryAtHeight = "2"
-	}
+	// // TODO: check why difference in values when querying with height between v1 and v2
+	// // ref: https://github.com/cosmos/cosmos-sdk/issues/22302
+	// if isV2() {
+	// 	queryAtHeight = "2"
+	// }
 
 	paramsResp := `{"params":{"mint_denom":"stake","inflation_rate_change":"0.130000000000000000","inflation_max":"1.000000000000000000","inflation_min":"0.000000000000000000","goal_bonded":"0.670000000000000000","blocks_per_year":"6311520","max_supply":"0"}}`
 	inflationResp := `{"inflation":"1.000000000000000000"}`

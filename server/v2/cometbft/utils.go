@@ -280,9 +280,8 @@ func (c *Consensus[T]) validateFinalizeBlockHeight(req *abci.FinalizeBlockReques
 
 	// expectedHeight holds the expected height to validate
 	var expectedHeight uint64
-	if lastBlockHeight == 0 && c.initialHeight > 1 {
-		// In this case, we're validating the first block of the chain, i.e no
-		// previous commit. The height we're expecting is the initial height.
+	if req.Height == int64(c.initialHeight) {
+		// gensis height will be the first finalize block height
 		expectedHeight = c.initialHeight
 	} else {
 		// This case can mean two things:

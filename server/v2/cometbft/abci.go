@@ -318,7 +318,7 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 	bz := sha256.Sum256([]byte{})
 
 	br := &server.BlockRequest[T]{
-		Height:    uint64(req.InitialHeight - 1),
+		Height:    uint64(req.InitialHeight),
 		Time:      req.Time,
 		Hash:      bz[:],
 		AppHash:   ci.Hash,
@@ -356,9 +356,11 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 	cs := &store.Changeset{
 		Changes: stateChanges,
 	}
-	stateRoot, err := c.store.WorkingHash(cs)
+
+	// commit state to avoid version 1 having 0 state for queries
+	stateRoot, err := c.store.Commit(cs)
 	if err != nil {
-		return nil, fmt.Errorf("unable to write the changeset: %w", err)
+		return nil, fmt.Errorf("unable to commit the changeset: %w", err)
 	}
 
 	return &abciproto.InitChainResponse{
@@ -454,13 +456,13 @@ func (c *Consensus[T]) FinalizeBlock(
 
 	// we don't need to deliver the block in the genesis block
 	if req.Height == int64(c.initialHeight) {
-		appHash, err := c.store.Commit(store.NewChangeset())
+		ci, err := c.store.GetStateCommitment().GetCommitInfo(uint64(req.Height))
 		if err != nil {
-			return nil, fmt.Errorf("unable to commit the changeset: %w", err)
+			return nil, err
 		}
 		c.lastCommittedHeight.Store(req.Height)
 		return &abciproto.FinalizeBlockResponse{
-			AppHash: appHash,
+			AppHash: ci.CommitHash,
 		}, nil
 	}
 
