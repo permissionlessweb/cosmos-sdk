@@ -326,8 +326,15 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 		IsGenesis: true,
 	}
 
+	ciCtx := contextWithCometInfo(ctx, comet.Info{
+		Evidence: []comet.Evidence{},
+		// ValidatorsHash:  req.NextValidatorsHash,
+		// ProposerAddress: req.ProposerAddress,
+		LastCommit: comet.CommitInfo{},
+	})
+
 	blockresponse, genesisState, err := c.app.InitGenesis(
-		ctx,
+		ciCtx,
 		br,
 		req.AppStateBytes,
 		c.txCodec)
