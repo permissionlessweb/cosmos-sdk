@@ -326,15 +326,8 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 		IsGenesis: true,
 	}
 
-	ciCtx := contextWithCometInfo(ctx, comet.Info{
-		Evidence: []comet.Evidence{},
-		// ValidatorsHash:  req.NextValidatorsHash,
-		// ProposerAddress: req.ProposerAddress,
-		LastCommit: comet.CommitInfo{},
-	})
-
 	blockresponse, genesisState, err := c.app.InitGenesis(
-		ciCtx,
+		ctx,
 		br,
 		req.AppStateBytes,
 		c.txCodec)
@@ -365,7 +358,7 @@ func (c *Consensus[T]) InitChain(ctx context.Context, req *abciproto.InitChainRe
 	}
 
 	// commit state to avoid version 1 having 0 state for queries
-	stateRoot, err := c.store.Commit(cs)
+	stateRoot, err := c.store.WorkingHash(cs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to commit the changeset: %w", err)
 	}
@@ -463,13 +456,13 @@ func (c *Consensus[T]) FinalizeBlock(
 
 	// we don't need to deliver the block in the genesis block
 	if req.Height == int64(c.initialHeight) {
-		ci, err := c.store.GetStateCommitment().GetCommitInfo(uint64(req.Height))
+		appHash, err := c.store.Commit(store.NewChangeset())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to commit the changeset: %w", err)
 		}
 		c.lastCommittedHeight.Store(req.Height)
 		return &abciproto.FinalizeBlockResponse{
-			AppHash: ci.CommitHash,
+			AppHash: appHash,
 		}, nil
 	}
 
