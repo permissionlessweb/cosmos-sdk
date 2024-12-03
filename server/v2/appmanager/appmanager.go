@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 
 	"cosmossdk.io/core/server"
 	corestore "cosmossdk.io/core/store"
@@ -53,6 +54,12 @@ type AppManager[T transaction.Tx] interface {
 	// independently of the db state. For example, it can be used to process a query with temporary
 	// and uncommitted state
 	QueryWithState(ctx context.Context, state corestore.ReaderMap, request transaction.Msg) (transaction.Msg, error)
+
+	DeliverSims(
+		ctx context.Context,
+		block *server.BlockRequest[T],
+		simsBuilder func(ctx context.Context) iter.Seq[T],
+	) (*server.BlockResponse, corestore.WriterMap, error)
 }
 
 // Store defines the underlying storage behavior needed by AppManager.
@@ -107,7 +114,7 @@ func (a appManager[T]) InitGenesis(
 	txDecoder transaction.Codec[T],
 ) (*server.BlockResponse, corestore.WriterMap, error) {
 	var genTxs []T
-	genesisState, err := a.initGenesis(
+	genesisStateChanges, err := a.initGenesis(
 		ctx,
 		bytes.NewBuffer(initGenesisJSON),
 		func(jsonTx json.RawMessage) error {
@@ -125,7 +132,7 @@ func (a appManager[T]) InitGenesis(
 	// run block
 	blockRequest.Txs = genTxs
 
-	blockResponse, blockZeroState, err := a.stf.DeliverBlock(ctx, blockRequest, genesisState)
+	blockResponse, blockZeroState, err := a.stf.DeliverBlock(ctx, blockRequest, genesisStateChanges)
 	if err != nil {
 		return blockResponse, nil, fmt.Errorf("failed to deliver block %d: %w", blockRequest.Height, err)
 	}
@@ -136,12 +143,12 @@ func (a appManager[T]) InitGenesis(
 		return nil, nil, fmt.Errorf("failed to get block zero state changes: %w", err)
 	}
 
-	err = genesisState.ApplyStateChanges(stateChanges)
+	err = genesisStateChanges.ApplyStateChanges(stateChanges)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to apply block zero state changes to genesis state: %w", err)
 	}
 
-	return blockResponse, genesisState, err
+	return blockResponse, genesisStateChanges, err
 }
 
 // ExportGenesis exports the genesis state of the application.
@@ -168,6 +175,27 @@ func (a appManager[T]) DeliverBlock(
 	}
 
 	blockResponse, newState, err := a.stf.DeliverBlock(ctx, block, currentState)
+	if err != nil {
+		return nil, nil, fmt.Errorf("block delivery failed: %w", err)
+	}
+
+	return blockResponse, newState, nil
+}
+func (a appManager[T]) DeliverSims(
+	ctx context.Context,
+	block *server.BlockRequest[T],
+	simsBuilder func(ctx context.Context) iter.Seq[T],
+) (*server.BlockResponse, corestore.WriterMap, error) {
+	latestVersion, currentState, err := a.db.StateLatest()
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create new state for height %d: %w", block.Height, err)
+	}
+
+	if latestVersion+1 != block.Height {
+		return nil, nil, fmt.Errorf("invalid DeliverBlock height wanted %d, got %d", latestVersion+1, block.Height)
+	}
+
+	blockResponse, newState, err := a.stf.DeliverSims(ctx, block, currentState, simsBuilder)
 	if err != nil {
 		return nil, nil, fmt.Errorf("block delivery failed: %w", err)
 	}

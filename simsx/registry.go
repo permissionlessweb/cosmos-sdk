@@ -160,6 +160,12 @@ func NewUniqueTypeRegistry() UniqueTypeRegistry {
 }
 
 func (s UniqueTypeRegistry) Add(weight uint32, f SimMsgFactoryX) {
+	if weight == 0 {
+		return
+	}
+	if f == nil {
+		panic("message factory must not be nil")
+	}
 	msgType := f.MsgType()
 	msgTypeURL := sdk.MsgTypeURL(msgType)
 	if _, exists := s[msgTypeURL]; exists {
@@ -177,6 +183,35 @@ func (s UniqueTypeRegistry) Iterator() WeightedProposalMsgIter {
 
 	return func(yield func(uint32, FactoryMethod) bool) {
 		for _, v := range sortedWeightedFactory {
+			if !yield(v.Weight, v.Factory.Create()) {
+				return
+			}
+		}
+	}
+}
+
+var _ Registry = &UnorderedRegistry{}
+
+type UnorderedRegistry []WeightedFactory
+
+func NewUnorderedRegistry() *UnorderedRegistry {
+	r := make(UnorderedRegistry, 0)
+	return &r
+}
+
+func (x *UnorderedRegistry) Add(weight uint32, f SimMsgFactoryX) {
+	if weight == 0 {
+		return
+	}
+	if f == nil {
+		panic("message factory must not be nil")
+	}
+	*x = append(*x, WeightedFactory{Weight: weight, Factory: f})
+}
+
+func (x UnorderedRegistry) Iterator() WeightedProposalMsgIter {
+	return func(yield func(uint32, FactoryMethod) bool) {
+		for _, v := range x {
 			if !yield(v.Weight, v.Factory.Create()) {
 				return
 			}
