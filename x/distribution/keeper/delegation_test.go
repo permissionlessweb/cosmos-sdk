@@ -193,6 +193,13 @@ func TestCalculateRewardsAfterSlash(t *testing.T) {
 		distrKeeper.GetValidatorAccumulatedCommission(ctx, valAddr).Commission)
 }
 
+func TestCorrectClaimV018Patch(t *testing.T) {
+
+	// setup delegations to slashed validators
+
+	// confirm when calculating reward we get constants
+
+}
 func TestCalculateRewardsAfterManySlashes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	key := sdk.NewKVStoreKey(disttypes.StoreKey)

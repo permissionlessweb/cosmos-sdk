@@ -123,9 +123,34 @@ func (k Keeper) CalculateDelegationRewards(ctx sdk.Context, val stakingtypes.Val
 		// however any greater amount should be considered a breach in expected
 		// behaviour.
 		marginOfErr := sdk.SmallestDec().MulInt64(3)
+
+		// VO18 Slashed validators
+		var SLASHED_VALS = []string{
+			"bitsongvaloper1slnkc2a8lhxgz5cc7lg9zlgzfedfpdve0rh2p6",
+			"bitsongvaloper1j98m4tzhzktqgwmmd3q8k9trgch5ssxnpm7r3k",
+			"bitsongvaloper1l2kthmf0gzlmscca859zs6fa22p769ph3ptgzm",
+			"bitsongvaloper19mmq66klqpcqjztdaclaf5tvknn4mjkd9k9fup",
+			"bitsongvaloper1ynj2u9x0pgq6gx38pllwrg7948l9yp9lr05zc4",
+			"bitsongvaloper1wusnupm08xwe05zgvk6frqjuxak6q5ang5jppk",
+			"bitsongvaloper1qxw4fjged2xve8ez7nu779tm8ejw92rv0vcuqr",
+		}
+
 		if stake.LTE(currentStake.Add(marginOfErr)) {
 			stake = currentStake
 		} else {
+			// load all delegations for delegator
+			usrDelegations := k.stakingKeeper.GetAllDelegatorDelegations(ctx, del.GetDelegatorAddr())
+
+			for _, validatorAddr := range SLASHED_VALS {
+				// check if staked to one of slashed vals
+				for _, del := range usrDelegations {
+					if del.ValidatorAddress == validatorAddr {
+						stake = currentStake
+						return rewards.Add(k.calculateDelegationRewardsBetween(ctx, val, startingPeriod, endingPeriod, stake)...)
+					}
+				}
+			}
+
 			panic(fmt.Sprintf("calculated final stake for delegator %s greater than current stake"+
 				"\n\tfinal stake:\t%s"+
 				"\n\tcurrent stake:\t%s",
