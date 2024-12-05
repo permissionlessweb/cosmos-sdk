@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"fmt"
 	"testing"
 
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
@@ -20,6 +21,83 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 )
 
+func TestV018PatchBasic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	key := sdk.NewKVStoreKey(disttypes.StoreKey)
+	testCtx := testutil.DefaultContextWithDB(t, key, sdk.NewTransientStoreKey("transient_test"))
+	encCfg := moduletestutil.MakeTestEncodingConfig(distribution.AppModuleBasic{})
+	ctx := testCtx.Ctx.WithBlockHeader(tmproto.Header{Height: 1})
+
+	bankKeeper := distrtestutil.NewMockBankKeeper(ctrl)
+	stakingKeeper := distrtestutil.NewMockStakingKeeper(ctrl)
+	accountKeeper := distrtestutil.NewMockAccountKeeper(ctrl)
+
+	accountKeeper.EXPECT().GetModuleAddress("distribution").Return(distrAcc.GetAddress())
+
+	distrKeeper := keeper.NewKeeper(
+		encCfg.Codec,
+		key,
+		accountKeeper,
+		bankKeeper,
+		stakingKeeper,
+		"fee_collector",
+		authtypes.NewModuleAddress("gov").String(),
+	)
+
+	// create validator with 50% commission
+	valAddr := sdk.ValAddress(keeper.SLASHED_VALIDATORS[0])
+	fmt.Println("valAddr", keeper.SLASHED_VALIDATORS[0])
+	addr := sdk.AccAddress(valAddr)
+	fmt.Println("addr", addr)
+	defaultDelShares := math.LegacyNewDecFromIntWithPrec(sdk.NewInt(250), 0)
+	fmt.Println("defaultDelShares", defaultDelShares)
+	fmt.Println("delegatorsDelegationShare", defaultDelShares)
+	delegatorsDelegationShare := math.LegacyNewDecFromIntWithPrec(sdk.NewInt(250), 0)
+	// // delegation mock
+	del := stakingtypes.Delegation{
+		DelegatorAddress: addr.String(),
+		ValidatorAddress: valAddr.String(),
+		Shares:           delegatorsDelegationShare,
+	}
+	val := stakingtypes.Validator{
+		OperatorAddress: valAddr.String(),
+		Jailed:          false,
+		Status:          0,
+		Tokens:          sdk.NewInt(1000),
+		DelegatorShares: defaultDelShares.Add(delegatorsDelegationShare),
+		UnbondingHeight: 0,
+	}
+
+	fmt.Println("del", del)
+	fmt.Println("val", val)
+
+	// end period
+	startingPeriod := uint64(100)
+	endingPeriod := uint64(150)
+
+	// get tokens from shares for this validator
+	currentStake := val.TokensFromShares(del.Shares)
+
+	// test case 1: delegator address matches
+	_, reward := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+		addr.String(),
+	})
+	require.True(t, reward)
+
+	// test case 1: delegator addr does not match
+	_, reward = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+		"empty",
+	})
+	require.False(t, reward)
+
+	// test case 3: sway function is triggered
+	currentStake = math.LegacyNewDecFromIntWithPrec(sdk.NewInt(1000000), 0)
+	_, exists := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+		addr.String(),
+	})
+	require.True(t, exists)
+
+}
 func TestCalculateRewardsBasic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	key := sdk.NewKVStoreKey(disttypes.StoreKey)
