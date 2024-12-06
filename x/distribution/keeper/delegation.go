@@ -127,16 +127,16 @@ func (k Keeper) CalculateDelegationRewards(ctx sdk.Context, val stakingtypes.Val
 			stake = currentStake
 		} else {
 			// load all delegations for delegator
-			_, patch := k.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, SLASHED_DELEGATORS)
-			marginOfErr := currentStake.Mul(sdk.NewDecWithPrec(12, 2))
-			if stake.LTE(currentStake.Add(marginOfErr)) && patch {
+			marginOfErr := currentStake.Mul(sdk.NewDecWithPrec(12, 3)) // 1.2%
+			ok := k.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, SLASHED_DELEGATORS)
+			if ok && stake.LTE(currentStake.Add(marginOfErr)) {
 				stake = currentStake
-			} else {
-				panic(fmt.Sprintf("calculated final stake for delegator %s greater than current stake"+
-					"\n\tfinal stake:\t%s"+
-					"\n\tcurrent stake:\t%s",
-					del.GetDelegatorAddr(), stake, currentStake))
+				fmt.Println("~ v018-patch applied, delegation existed for validator:", del.GetValidatorAddr())
 			}
+			panic(fmt.Sprintf("calculated final stake for delegator %s greater than current stake"+
+				"\n\tfinal stake:\t%s"+
+				"\n\tcurrent stake:\t%s",
+				del.GetDelegatorAddr(), stake, currentStake))
 		}
 	}
 
@@ -147,19 +147,24 @@ func (k Keeper) CalculateDelegationRewards(ctx sdk.Context, val stakingtypes.Val
 func (k Keeper) CalculateRewardsForSlashedDelegators(
 	ctx sdk.Context,
 	val stakingtypes.ValidatorI,
-	startingPeriod, endingPeriod uint64,
 	del stakingtypes.DelegationI,
 	currentStake math.LegacyDec,
 	list []string,
-) (sdk.DecCoins, bool) {
+) bool {
+	valAddr := del.GetValidatorAddr().String()
 	delAddr := del.GetDelegatorAddr().String()
+	for _, sv := range SLASHED_VALIDATORS {
+		if valAddr == sv {
+			return true
+		}
+	}
 	for _, sv := range list {
 		if delAddr == sv {
-			return sdk.DecCoins{}, true
+			return true
 		}
 	}
 
-	return sdk.DecCoins{}, false
+	return false
 }
 
 // VO18 delegators impacted during v18 upgrade issue with slashing module
@@ -531,7 +536,7 @@ var SLASHED_DELEGATORS = []string{
 	"bitsong1l77wstfdf08f2x8al0m52hru4z2tm0ug0f7kua",
 }
 
-// VO18 delegators impacted during v18 upgrade issue with slashing module
+// VO18 validators with slashed events
 var SLASHED_VALIDATORS = []string{
 	"bitsongvaloper100akrazwzrxhklgnh2ueaqfcv7kcanh9ew3jxf",
 	"bitsongvaloper10gwt8pf92qnf4ym42xs593gxfmwze57vtw0yw8",

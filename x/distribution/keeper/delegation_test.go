@@ -45,14 +45,15 @@ func TestV018PatchBasic(t *testing.T) {
 	)
 
 	// create validator with 50% commission
+	one := sdk.NewInt(1000000)
 	valAddr := sdk.ValAddress(keeper.SLASHED_VALIDATORS[0])
 	fmt.Println("valAddr", keeper.SLASHED_VALIDATORS[0])
 	addr := sdk.AccAddress(valAddr)
 	fmt.Println("addr", addr)
-	defaultDelShares := math.LegacyNewDecFromIntWithPrec(sdk.NewInt(250), 0)
+	defaultDelShares := math.LegacyNewDecFromIntWithPrec(one, 0)
 	fmt.Println("defaultDelShares", defaultDelShares)
 	fmt.Println("delegatorsDelegationShare", defaultDelShares)
-	delegatorsDelegationShare := math.LegacyNewDecFromIntWithPrec(sdk.NewInt(250), 0)
+	delegatorsDelegationShare := math.LegacyNewDecFromIntWithPrec(one, 0)
 	// // delegation mock
 	del := stakingtypes.Delegation{
 		DelegatorAddress: addr.String(),
@@ -60,7 +61,7 @@ func TestV018PatchBasic(t *testing.T) {
 		Shares:           delegatorsDelegationShare,
 	}
 	val := stakingtypes.Validator{
-		OperatorAddress: valAddr.String(),
+		OperatorAddress: valAddr.String(), // cosmosvaloper1mnfm9c7cdgqnkk66sganp78m0ydmcr4pn7fqfk
 		Jailed:          false,
 		Status:          0,
 		Tokens:          sdk.NewInt(1000),
@@ -71,28 +72,44 @@ func TestV018PatchBasic(t *testing.T) {
 	fmt.Println("del", del)
 	fmt.Println("val", val)
 
-	// end period
-	startingPeriod := uint64(100)
-	endingPeriod := uint64(150)
-
 	// get tokens from shares for this validator
 	currentStake := val.TokensFromShares(del.Shares)
 
-	// test case 1: delegator address matches
-	_, reward := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+	// in delegator and validator list
+	ok := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{
 		addr.String(),
 	})
-	require.True(t, reward)
+	require.True(t, ok)
 
-	// test case 1: delegator addr does not match
-	_, reward = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+	// is not in validator or delegator list
+	ok = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{
 		"empty",
 	})
-	require.False(t, reward)
+	require.False(t, ok)
+	// stake without slashed registered
+	v18errorStake := math.LegacyNewDecWithPrec(64349991714, 0)
+	// stake with slash registered
+	currentStake = math.LegacyNewDecWithPrec(63706491883, 0)
+	margin := sdk.NewDecWithPrec(12, 3) // 1.2 %
+	fmt.Println("margin", margin)
 
-	// test case 3: sway function is triggered
-	currentStake = math.LegacyNewDecFromIntWithPrec(sdk.NewInt(1000000), 0)
-	_, exists := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, startingPeriod, endingPeriod, del, currentStake, []string{
+	// calculated margin
+	calcMargin := currentStake.Add(currentStake.Mul(margin))
+	diffactexptd := v18errorStake.Sub(currentStake)
+	diffPerc := diffactexptd.Quo(currentStake)
+	fmt.Println("= diffPerc", diffPerc)
+
+	// assertion within bounds, and within list
+	require.True(t, v18errorStake.LTE(calcMargin))
+	exists := distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{
+		addr.String(),
+	})
+	require.True(t, exists)
+
+	// out of bounds, within list
+	calcMargin = calcMargin.Add(diffactexptd).Add(sdk.OneDec())
+	require.True(t, v18errorStake.LTE(calcMargin))
+	exists = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{
 		addr.String(),
 	})
 	require.True(t, exists)
@@ -131,7 +148,7 @@ func TestCalculateRewardsBasic(t *testing.T) {
 	val, err := distrtestutil.CreateValidator(valConsPk0, sdk.NewInt(1000))
 	require.NoError(t, err)
 	val.Commission = stakingtypes.NewCommission(sdk.NewDecWithPrec(5, 1), sdk.NewDecWithPrec(5, 1), math.LegacyNewDec(0))
-
+	fmt.Println("val", val)
 	// delegation mock
 	del := stakingtypes.NewDelegation(addr, valAddr, val.DelegatorShares)
 	stakingKeeper.EXPECT().Validator(gomock.Any(), valAddr).Return(val).Times(3)
