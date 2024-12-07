@@ -131,7 +131,6 @@ func (k Keeper) CalculateDelegationRewards(ctx sdk.Context, val stakingtypes.Val
 			ok := k.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, SLASHED_DELEGATORS)
 			if ok && stake.LTE(currentStake.Add(marginOfErr)) {
 				stake = currentStake
-				fmt.Println("~ v018-patch applied, delegation existed for validator:", del.GetValidatorAddr())
 			} else {
 				panic(fmt.Sprintf("calculated final stake for delegator %s greater than current stake"+
 					"\n\tfinal stake:\t%s"+
