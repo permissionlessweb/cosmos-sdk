@@ -114,7 +114,34 @@ func TestV018PatchBasic(t *testing.T) {
 	})
 	require.True(t, exists)
 
+	calcMargin = calcMargin.Add(diffactexptd).Add(sdk.OneDec())
+	require.True(t, v18errorStake.LTE(calcMargin))
+	exists = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{})
+	require.False(t, exists)
+
+	// out of bounds, with delegator but bad validator
+	calcMargin = calcMargin.Add(diffactexptd).Add(sdk.OneDec())
+	require.True(t, v18errorStake.LTE(calcMargin))
+	val.OperatorAddress = "bitsongvaloper189y5r710a9a2kpthd5ah6l7za2jz7p8yw3rz9f"
+	exists = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{
+		addr.String(),
+	})
+	require.True(t, exists)
+
+	// out of bounds, without delegator or validator list
+	calcMargin = calcMargin.Add(diffactexptd).Add(sdk.OneDec())
+	require.True(t, v18errorStake.LTE(calcMargin))
+	exists = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{})
+	require.False(t, exists)
+
+	// out of bounds, without delegator or validator list
+	calcMargin = calcMargin.Add(diffactexptd).Add(sdk.OneDec())
+	require.True(t, v18errorStake.LTE(calcMargin))
+	val.OperatorAddress = "bitsongvaloper189y5r7c3a9a2kpthd5ah6l7za2jz7p8yw3rz9f"
+	exists = distrKeeper.CalculateRewardsForSlashedDelegators(ctx, val, del, currentStake, []string{})
+	require.False(t, exists)
 }
+
 func TestCalculateRewardsBasic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	key := sdk.NewKVStoreKey(disttypes.StoreKey)
