@@ -786,6 +786,8 @@ func testnetify(ctx *Context, testnetAppCreator types.AppCreator, db dbm.DB, tra
 	}
 	validatorAddress := userPubKey.Address()
 
+	fmt.Printf("userPubKey: %v\n | validatorAddress: %v\n", userPubKey, validatorAddress.String())
+
 	stateStore := sm.NewStore(stateDB, sm.StoreOptions{
 		DiscardABCIResponses: config.Storage.DiscardABCIResponses,
 	})
@@ -823,8 +825,10 @@ func testnetify(ctx *Context, testnetAppCreator types.AppCreator, db dbm.DB, tra
 	appHeight := res.LastBlockHeight
 
 	var block *cmttypes.Block
+	var blockmodtypes uint64
 	switch {
 	case appHeight == blockStore.Height():
+		blockmodtypes = 1
 		block = blockStore.LoadBlock(blockStore.Height())
 		// If the state's last blockstore height does not match the app and blockstore height, we likely stopped with the halt height flag.
 		if state.LastBlockHeight != appHeight {
@@ -839,6 +843,7 @@ func testnetify(ctx *Context, testnetAppCreator types.AppCreator, db dbm.DB, tra
 			}
 		}
 	case blockStore.Height() > state.LastBlockHeight:
+		blockmodtypes = 2
 		// This state usually occurs when we gracefully stop the node.
 		err = blockStore.DeleteLatestBlock()
 		if err != nil {
@@ -846,10 +851,12 @@ func testnetify(ctx *Context, testnetAppCreator types.AppCreator, db dbm.DB, tra
 		}
 		block = blockStore.LoadBlock(blockStore.Height())
 	default:
+
+		blockmodtypes = 3
 		// If there is any other state, we just load the block
 		block = blockStore.LoadBlock(blockStore.Height())
 	}
-
+	fmt.Printf("blockmodtypes: %v\n", blockmodtypes)
 	block.ChainID = newChainID
 	state.ChainID = newChainID
 
