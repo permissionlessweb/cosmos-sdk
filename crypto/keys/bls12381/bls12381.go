@@ -13,7 +13,6 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
-	proto "github.com/cosmos/gogoproto/proto"
 )
 
 const (
@@ -59,10 +58,6 @@ var (
 	_ codec.AminoMarshaler = &PrivKey{}
 )
 
-type PrivKey struct {
-	Key *blst.SecretKey
-}
-
 // GenPrivKeyFromSecret generates a new random key using `secret` for the seed
 func GenPrivKeyFromSecret(secret []byte) (*PrivKey, error) {
 	if len(secret) != 32 {
@@ -71,7 +66,7 @@ func GenPrivKeyFromSecret(secret []byte) (*PrivKey, error) {
 	}
 
 	sk := blst.KeyGen(secret)
-	return &PrivKey{Key: sk}, nil
+	return &PrivKey{Key: sk.Serialize()}, nil
 }
 
 // NewPrivateKeyFromBytes build a new key from the given bytes.
@@ -80,7 +75,7 @@ func NewPrivateKeyFromBytes(bz []byte) (*PrivKey, error) {
 	if sk == nil {
 		return nil, ErrDeserialization
 	}
-	return &PrivKey{Key: sk}, nil
+	return &PrivKey{Key: sk.Serialize()}, nil
 }
 
 // GenPrivKey generates a new key.
@@ -95,13 +90,13 @@ func GenPrivKey() (*PrivKey, error) {
 
 // Bytes returns the byte representation of the Key.
 func (privKey PrivKey) Bytes() []byte {
-	return privKey.Key.Serialize()
+	return privKey.Key
 }
 
 // PubKey returns ECDSA public key associated with this private key.
 func (sk *PrivKey) PubKey() cryptotypes.PubKey {
-	pk := new(blstPublicKey).From(sk.Key)
-	return &PubKey{*pk}
+
+	return &PubKey{sk.PubKey().Bytes()}
 }
 
 // Type returns the type.
@@ -111,13 +106,15 @@ func (PrivKey) Type() string {
 
 // Sign signs the given byte array.
 func (privKey PrivKey) Sign(msg []byte) ([]byte, error) {
-	signature := new(blstSignature).Sign(privKey.Key, msg, dstMinPk)
+	sk := new(blst.SecretKey).Deserialize(privKey.Bytes())
+	signature := new(blstSignature).Sign(sk, msg, dstMinPk)
 	return signature.Compress(), nil
 }
 
 // Zeroize clears the private key.
 func (privKey *PrivKey) Zeroize() {
-	privKey.Key.Zeroize()
+	sk := new(blst.SecretKey).Deserialize(privKey.Bytes())
+	sk.Zeroize()
 }
 
 // MarshalJSON marshals the private key to JSON.
@@ -151,10 +148,6 @@ func (privKey PrivKey) Equals(other cryptotypes.LedgerPrivKey) bool {
 	return bytes.Equal(privKey.Bytes(), otherBLS.Bytes())
 }
 
-func (m *PrivKey) Reset()         { *m = PrivKey{} }
-func (m *PrivKey) String() string { return proto.CompactTextString(m) }
-func (*PrivKey) ProtoMessage()    {}
-
 // ===============================================================================================
 // Public Key
 // ===============================================================================================
@@ -166,15 +159,6 @@ func (*PrivKey) ProtoMessage()    {}
 // var _ crypto.PubKey = &PubKey{}
 var _ cryptotypes.PubKey = &PubKey{}
 
-// PubKey is an bls12381 public key for aggregated
-// It's needed for Any serialization and SDK compatibility.
-// It must not be used in a non Tendermint key context because it doesn't implement
-// ADR-28. Nevertheless, you will like to use bls12381 in app user level
-// then you must create a new proto message and follow ADR-28 for Address construction.
-type PubKey struct {
-	Key blst.P1Affine `protobuf:"bytes,1,opt,name=key,proto3,casttype=cosmos-sdk/crypto/bls12381/blstPublicKey" json:"key,omitempty"`
-}
-
 // NewPublicKeyFromBytes returns a new public key from the given bytes.
 func NewPublicKeyFromBytes(bz []byte) (*PubKey, error) {
 	pk := new(blstPublicKey).Deserialize(bz)
@@ -185,44 +169,41 @@ func NewPublicKeyFromBytes(bz []byte) (*PubKey, error) {
 	if !pk.KeyValidate() {
 		return nil, ErrInfinitePubKey
 	}
-	return &PubKey{Key: *pk}, nil
+	return &PubKey{Key: pk.Compress()}, nil
 }
 
 // Address returns the address of the key.
 // The function will panic if the public key is invalid.
 func (pubKey PubKey) Address() cryptotypes.Address {
-	return cryptotypes.Address(tmhash.SumTruncated(pubKey.Key.Serialize()))
+	return cryptotypes.Address(tmhash.SumTruncated(pubKey.Key))
 }
 
 // VerifySignature verifies the given signature.
 func (pubKey PubKey) VerifySignature(msg, sig []byte) bool {
 	signature := new(blstSignature).Uncompress(sig)
+
 	if signature == nil {
 		return false
 	}
-
+	pk := new(blstPublicKey).Deserialize(pubKey.Bytes())
 	// Group check signature. Do not check for infinity since an aggregated signature
 	// could be infinite.
 	if !signature.SigValidate(false) {
 		return false
 	}
 
-	return signature.Verify(false, &pubKey.Key, false, msg, dstMinPk)
+	return signature.Verify(false, pk, false, msg, dstMinPk)
 }
 
 // Bytes returns the byte format.
 func (pubKey PubKey) Bytes() []byte {
-	return pubKey.Key.Serialize()
+	return pubKey.Key
 }
 
 // Type returns the key's type.
 func (PubKey) Type() string {
 	return KeyType
 }
-
-// MarshalJSON marshals the public key to JSON.
-func (m *PubKey) Reset()      { *m = PubKey{} }
-func (*PubKey) ProtoMessage() {}
 
 // XXX: Not a pointer because our JSON encoder (libs/json) does not correctly
 // handle pointers.
@@ -276,7 +257,7 @@ func (privKey *PrivKey) UnmarshalAmino(bz []byte) error {
 		return fmt.Errorf("secret key invalid")
 	}
 
-	privKey.Key = secretKey
+	privKey.Key = secretKey.Serialize()
 
 	return nil
 }
@@ -294,23 +275,23 @@ func (privKey *PrivKey) UnmarshalAminoJSON(bz []byte) error {
 }
 
 // Compare compares two PubKey instances.
-func (pk *PubKey) Compare(other *PubKey) int {
-	if other == nil {
-		if pk == nil {
-			return 0
-		}
-		return 1
-	}
+// func (pk *PubKey) Compare(other *PubKey) int {
+// 	if other == nil {
+// 		if pk == nil {
+// 			return 0
+// 		}
+// 		return 1
+// 	}
 
-	if pk == nil {
-		return -1
-	}
+// 	if pk == nil {
+// 		return -1
+// 	}
 
-	return bytes.Compare(pk.Key.Compress(), other.Key.Compress())
-}
+// 	return bytes.Compare(pk.Key.Compress(), other.Key.Compress())
+// }
 
 // Compare compares two PubKey instances.
 func (pk *PubKey) Equal(other *PubKey) bool {
 
-	return bytes.Equal(pk.Key.Compress(), other.Key.Compress())
+	return bytes.Equal(pk.GetKey(), other.GetKey())
 }
