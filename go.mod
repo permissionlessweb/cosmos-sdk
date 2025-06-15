@@ -52,6 +52,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
+	github.com/supranational/blst v0.3.14
 	github.com/tendermint/go-amino v0.16.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/crypto v0.37.0

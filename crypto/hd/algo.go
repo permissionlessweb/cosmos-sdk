@@ -20,6 +20,8 @@ const (
 	Ed25519Type = PubKeyType("ed25519")
 	// Sr25519Type represents the Sr25519Type signature system.
 	Sr25519Type = PubKeyType("sr25519")
+	// Bls12381Type represents the Bls12381Type signature system.
+	Bls12381Type = PubKeyType("bls12381")
 )
 
 // Secp256k1 uses the Bitcoin secp256k1 ECDSA parameters.
