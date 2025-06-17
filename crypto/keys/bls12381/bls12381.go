@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cometbft/cometbft/crypto/tmhash"
 	blst "github.com/supranational/blst/bindings/go"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -175,7 +174,9 @@ func NewPublicKeyFromBytes(bz []byte) (*PubKey, error) {
 // Address returns the address of the key.
 // The function will panic if the public key is invalid.
 func (pubKey PubKey) Address() cryptotypes.Address {
-	return cryptotypes.Address(tmhash.SumTruncated(pubKey.Key))
+	return cryptotypes.Address(pubKey.Key)
+	// return cryptotypes.Address(tmhash.SumTruncated(pubKey.Key))
+
 }
 
 // VerifySignature verifies the given signature.
