@@ -134,9 +134,17 @@ func (c *configurator) runModuleMigrations(ctx sdk.Context, moduleName string, f
 
 	// Run in-place migrations for the module sequentially until toVersion.
 	for i := fromVersion; i < toVersion; i++ {
-		migrateFn, found := moduleMigrationsMap[i]
+		actualVersion := i
+
+		// skip v2 migration (v1 -> v3)
+		if moduleName == "packetfowardmiddleware" && i == 1 {
+			actualVersion = 2
+			i++
+		}
+
+		migrateFn, found := moduleMigrationsMap[actualVersion]
 		if !found {
-			return errorsmod.Wrapf(sdkerrors.ErrNotFound, "no migration found for module %s from version %d to version %d", moduleName, i, i+1)
+			return errorsmod.Wrapf(sdkerrors.ErrNotFound, "no migration found for module %s from version %d to version %d", moduleName, actualVersion, actualVersion+1)
 		}
 		ctx.Logger().Info(fmt.Sprintf("migrating module %s from version %d to version %d", moduleName, i, i+1))
 
