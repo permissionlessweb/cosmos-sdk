@@ -146,6 +146,10 @@ func (ms multiStore) SetIAVLSyncPruning(syncPruning bool) {
 	panic("not implemented")
 }
 
+func (ms multiStore) SetIAVLHashAlgorithm(algorithm string) {
+	panic("not implemented")
+}
+
 func (ms multiStore) SetInitialVersion(version int64) error {
 	panic("not implemented")
 }

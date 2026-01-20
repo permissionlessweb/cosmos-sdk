@@ -16,6 +16,7 @@ import (
 	protoio "github.com/cosmos/gogoproto/io"
 	gogotypes "github.com/cosmos/gogoproto/types"
 	iavltree "github.com/cosmos/iavl"
+	iavlhash "github.com/cosmos/iavl/hash"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/log"
@@ -66,7 +67,10 @@ type Store struct {
 	// iavlSyncPruning should rarely be set to true.
 	// The Prune command will automatically set this to true.
 	// This allows the prune command to wait for the pruning to finish before returning.
-	iavlSyncPruning   bool
+	iavlSyncPruning bool
+	// iavlHashAlgorithm specifies the hash algorithm for IAVL stores.
+	// Valid values are "sha256" (default) or "poseidon" for ZK-circuit-friendly hashing.
+	iavlHashAlgorithm string
 	storesParams      map[types.StoreKey]storeParams
 	stores            map[types.StoreKey]types.CommitKVStore
 	keysByName        map[string]types.StoreKey
@@ -139,6 +143,10 @@ func (rs *Store) SetIAVLDisableFastNode(disableFastNode bool) {
 
 func (rs *Store) SetIAVLSyncPruning(syncPruning bool) {
 	rs.iavlSyncPruning = syncPruning
+}
+
+func (rs *Store) SetIAVLHashAlgorithm(algorithm string) {
+	rs.iavlHashAlgorithm = algorithm
 }
 
 // GetStoreType implements Store.
@@ -1012,6 +1020,14 @@ func (rs *Store) loadCommitStoreFromParams(key types.StoreKey, id types.CommitID
 		panic("recursive MultiStores not yet supported")
 
 	case types.StoreTypeIAVL:
+		// Build IAVL options
+		opts := []iavltree.Option{iavltree.AsyncPruningOption(!rs.iavlSyncPruning)}
+
+		// Add hasher option if configured
+		if rs.iavlHashAlgorithm == "poseidon" {
+			opts = append(opts, iavltree.HasherOption(iavlhash.NewPoseidonHasher()))
+		}
+
 		store, err := iavl.LoadStoreWithOpts(db, rs.logger, key, id, params.initialVersion, rs.iavlCacheSize, rs.iavlDisableFastNode, rs.metrics, iavltree.AsyncPruningOption(!rs.iavlSyncPruning))
 		if err != nil {
 			return nil, err

@@ -208,6 +208,10 @@ type CommitMultiStore interface {
 	// for the pruning to finish before returning.
 	SetIAVLSyncPruning(sync bool)
 
+	// SetIAVLHashAlgorithm sets the hash algorithm for IAVL stores.
+	// Valid values are "sha256" (default) or "poseidon" for ZK-circuit-friendly hashing.
+	SetIAVLHashAlgorithm(algorithm string)
+
 	// RollbackToVersion rollback the db to specific version(height).
 	RollbackToVersion(version int64) error
 
